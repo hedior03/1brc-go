@@ -31,7 +31,12 @@ func main() {
 		output result (iteration)
 	*/
 
-	file, err := os.Open("data/data.csv")
+	if len(os.Args) == 0 {
+		panic("No input file provided.")
+	}
+	filename := os.Args[1]
+
+	file, err := os.Open(filename)
 	if err != nil {
 		panic("File couldn't be opened")
 	}
