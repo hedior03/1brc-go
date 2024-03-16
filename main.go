@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type cityAggregate struct {
@@ -22,10 +23,16 @@ type cityResult struct {
 	average float64
 }
 
+const mapAllocation = 10000
+const channelBufferSize = 500
+
 func main() {
 	/*
-		iterate through file
+		goroutine iterating through file
 			read line
+			bundle lines in array
+			send them to the Parsing func through a channel
+		goroutine iterating through the lines sent through the channel
 			parse into float
 			aggregate and store in map
 		consolidate result (iteration)
@@ -42,30 +49,22 @@ func main() {
 		panic("File couldn't be opened")
 	}
 	defer file.Close()
-
-	citiesMap := make(map[string]cityAggregate)
-
 	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		newLine := scanner.Text()
 
-		cityName, temperatureStr, _ := strings.Cut(newLine, ";")
-		temperature, _ := strconv.ParseFloat(temperatureStr, 32)
+	citiesMap := make(map[string]cityAggregate, mapAllocation)
 
-		currentCity := citiesMap[cityName]
-		currentCity.count++
-		currentCity.sum += temperature
-		if temperature > currentCity.max {
-			currentCity.max = temperature
-		}
-		if temperature < currentCity.min {
-			currentCity.min = temperature
-		}
+	var wg sync.WaitGroup
+	linesChannel := make(chan string, channelBufferSize)
 
-		citiesMap[cityName] = currentCity
-	}
+	wg.Add(1)
+	go readLines(scanner, linesChannel, &wg)
 
-	citiesResultMap := make(map[string]cityResult)
+	wg.Add(1)
+	go parseLines(citiesMap, linesChannel, &wg)
+
+	wg.Wait()
+
+	citiesResultMap := make(map[string]cityResult, mapAllocation)
 	for key := range citiesMap {
 		averageTemperature := citiesMap[key].sum / float64(citiesMap[key].count)
 		currentCityResult := cityResult{
@@ -82,6 +81,35 @@ func main() {
 	}
 
 	fmt.Printf("\nQuantity of cities: %d\n", len(citiesResultMap))
+}
+
+func readLines(scanner *bufio.Scanner, linesChannel chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for scanner.Scan() {
+		newLine := scanner.Text()
+		linesChannel <- newLine
+	}
+	close(linesChannel)
+}
+
+func parseLines(citiesMap map[string]cityAggregate, linesChannel chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for line := range linesChannel {
+		cityName, temperatureString, _ := strings.Cut(line, ";")
+		temperature, _ := parseFloat(temperatureString)
+
+		currentCity := citiesMap[cityName]
+		currentCity.count++
+		currentCity.sum += temperature
+		if temperature > currentCity.max {
+			currentCity.max = temperature
+		}
+		if temperature < currentCity.min {
+			currentCity.min = temperature
+		}
+
+		citiesMap[cityName] = currentCity
+	}
 }
 
 func parseFloat(temperatureStr string) (float64, error) {
