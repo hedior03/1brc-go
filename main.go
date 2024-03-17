@@ -67,14 +67,18 @@ func main() {
 
 	citiesResultMap := make(map[string]cityResult)
 	for key := range citiesMap {
-		averageTemperature := math.Round(citiesMap[key].sum*10/float64(citiesMap[key].count)) / 10
-		currentCityResult := cityResult{min: citiesMap[key].min, max: citiesMap[key].max, average: averageTemperature}
+		averageTemperature := citiesMap[key].sum / float64(citiesMap[key].count)
+		currentCityResult := cityResult{
+			min:     approxToDecimal(citiesMap[key].min),
+			max:     approxToDecimal(citiesMap[key].max),
+			average: approxToDecimal(averageTemperature),
+		}
 
 		citiesResultMap[key] = currentCityResult
 	}
 
 	for key := range citiesResultMap {
-		fmt.Printf("key: %s\tvalue: %+v\n", key, citiesResultMap[key])
+		fmt.Printf("%s\t%0.2f\t%0.2f\t%0.2f\n", key, citiesResultMap[key].min, citiesResultMap[key].max, citiesResultMap[key].average)
 	}
 
 	fmt.Printf("\nQuantity of cities: %d\n", len(citiesResultMap))
@@ -109,4 +113,9 @@ func parseFloat(temperatureStr string) (float64, error) {
 
 	temperature := float64((10*temperatureInt+decimal)*sign) / 10
 	return temperature, nil
+}
+
+func approxToDecimal(input float64) float64 {
+	output := math.Round(float64((input * 10)) / 10)
+	return output
 }
