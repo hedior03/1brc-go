@@ -24,7 +24,8 @@ type cityResult struct {
 }
 
 const mapAllocation = 10000
-const channelBufferSize = 500
+const channelBufferSize = 1000
+const batchSize = 1000
 
 func main() {
 	/*
@@ -54,7 +55,7 @@ func main() {
 	citiesMap := make(map[string]cityAggregate, mapAllocation)
 
 	var wg sync.WaitGroup
-	linesChannel := make(chan string, channelBufferSize)
+	linesChannel := make(chan []string, channelBufferSize)
 
 	wg.Add(1)
 	go readLines(scanner, linesChannel, &wg)
@@ -83,32 +84,43 @@ func main() {
 	fmt.Printf("\nQuantity of cities: %d\n", len(citiesResultMap))
 }
 
-func readLines(scanner *bufio.Scanner, linesChannel chan string, wg *sync.WaitGroup) {
+func readLines(scanner *bufio.Scanner, linesChannel chan []string, wg *sync.WaitGroup) {
 	defer wg.Done()
+	linesBatch := make([]string, 0, batchSize)
 	for scanner.Scan() {
 		newLine := scanner.Text()
-		linesChannel <- newLine
+		linesBatch = append(linesBatch, newLine)
+		if len(linesBatch) == batchSize {
+			linesChannel <- linesBatch
+			linesBatch = linesBatch[:0]
+		}
 	}
+	if len(linesBatch) > 0 {
+		linesChannel <- linesBatch
+	}
+	linesChannel <- linesBatch
 	close(linesChannel)
 }
 
-func parseLines(citiesMap map[string]cityAggregate, linesChannel chan string, wg *sync.WaitGroup) {
+func parseLines(citiesMap map[string]cityAggregate, linesChannel chan []string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	for line := range linesChannel {
-		cityName, temperatureString, _ := strings.Cut(line, ";")
-		temperature, _ := parseFloat(temperatureString)
+	for linesBatch := range linesChannel {
+		for _, line := range linesBatch {
+			cityName, temperatureString, _ := strings.Cut(line, ";")
+			temperature, _ := parseFloat(temperatureString)
 
-		currentCity := citiesMap[cityName]
-		currentCity.count++
-		currentCity.sum += temperature
-		if temperature > currentCity.max {
-			currentCity.max = temperature
-		}
-		if temperature < currentCity.min {
-			currentCity.min = temperature
-		}
+			currentCity := citiesMap[cityName]
+			currentCity.count++
+			currentCity.sum += temperature
+			if temperature > currentCity.max {
+				currentCity.max = temperature
+			}
+			if temperature < currentCity.min {
+				currentCity.min = temperature
+			}
 
-		citiesMap[cityName] = currentCity
+			citiesMap[cityName] = currentCity
+		}
 	}
 }
 
