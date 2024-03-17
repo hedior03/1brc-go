@@ -48,9 +48,8 @@ func main() {
 	for scanner.Scan() {
 		newLine := scanner.Text()
 
-		row := strings.Split(newLine, ";")
-		cityName := row[0]
-		temperature, _ := strconv.ParseFloat(row[1], 32)
+		cityName, temperatureStr, _ := strings.Cut(newLine, ";")
+		temperature, _ := strconv.ParseFloat(temperatureStr, 32)
 
 		currentCity := citiesMap[cityName]
 		currentCity.count++
